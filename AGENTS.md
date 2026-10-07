@@ -1,15 +1,40 @@
-## Layering
+## Architecture — DDD / Clean Architecture
+
+Four layers, strict dependency direction: **domain → application → infrastructure → presentation**.
+
+| Layer | Directory | Responsibility | Imports |
+|-------|-----------|---------------|---------|
+| **Domain** | `app/<domain>/models.py`, `app/<domain>/schemas.py` | Entities, value objects, domain logic | Nothing outside domain |
+| **Application** | `app/<domain>/service.py` | Use cases, orchestration | Domain + port interfaces |
+| **Infrastructure** | `core/` | DB, Qdrant, OpenAI clients, config | Anything |
+| **Presentation** | `api/v1/` | HTTP routers, request/response | Application layer |
+
+### Rules
+
+- **Domain models are pure.** No SQLAlchemy imports, no framework dependencies.
+  ORM models live in `app/<domain>/db_models.py` (infrastructure detail).
+- **Services depend on abstractions (protocols/interfaces), not concrete
+  infrastructure.** Inject DB session, Qdrant client, OpenAI client.
+- **Each domain owns its data.** `app/documents/` never queries chat tables
+  directly; cross-domain access goes through the owning domain's service.
+- `api/` never imports `core/` directly — it goes through `app/` services.
+- `app/` never imports `api/`.
+- `core/` never imports `app/`.
+
+### Domains
+
+- **documents** — upload, parse, chunk, embed, store
+- **chat** — conversation history, RAG retrieval, LLM streaming
+
+## Layering (routers)
 
 - `api/v1/` routers own HTTP: parse request, call service, return response.
   No SQL, no business logic in routes.
-- `app/` services own queries and business rules. Return ORM objects or plain
-  results — never response schemas.
-- `app/` never imports `api/`. `core/` never imports `app/`.
 
 ## Transactions
 
 - One request = one transaction. Services `flush()`, never `commit()`.
-- The session middleware or caller owns commit/rollback.
+- The session middleware or dependency owns commit/rollback.
 
 ## Queries
 
@@ -19,9 +44,9 @@
 
 ## LLM and embeddings
 
-- All OpenAI calls go through a single client module (`core/openai/` or
-  `app/chat/`). Never instantiate the client inline.
-- Always pass `settings.openai_api_key` from config, never hardcode.
+- All OpenAI calls go through `core/openai/client.py`.
+  Never instantiate the client inline.
+- Always use `settings.openai_api_key` from config, never hardcode.
 - Embedding calls batch documents — never one-by-one in a loop.
 
 ## Qdrant
