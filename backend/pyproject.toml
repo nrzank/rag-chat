@@ -1,0 +1,28 @@
+[project]
+name = "rag-chat"
+version = "0.1.0"
+description = "RAG chatbot with document upload, vector search, and LLM streaming"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "openai>=1.58.0",
+    "qdrant-client>=1.12.0",
+    "python-multipart>=0.0.18",
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.0",
+    "sse-starlette>=2.2.0",
+    "numpy>=2.1.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
