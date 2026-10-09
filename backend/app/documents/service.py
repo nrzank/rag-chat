@@ -1,16 +1,13 @@
-import shutil
 from pathlib import Path
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.documents.models import Document, DocumentStatus
+from app.documents.repository import DocumentRepository
 from core.config import settings
 
 
 class DocumentService:
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, repo: DocumentRepository) -> None:
+        self.repo = repo
 
     async def upload(self, filename: str, content_type: str, file_bytes: bytes) -> Document:
         upload_dir = Path(settings.upload_dir)
@@ -19,28 +16,25 @@ class DocumentService:
         document = Document(
             filename=filename,
             content_type=content_type,
-            file_path="",
             status=DocumentStatus.pending,
         )
-        self.session.add(document)
-        await self.session.flush()
+        document = await self.repo.add(document)
 
         file_path = upload_dir / f"{document.id}_{filename}"
         file_path.write_bytes(file_bytes)
         document.file_path = str(file_path)
-        await self.session.flush()
+        document = await self.repo.update(document)
 
         return document
 
     async def get(self, document_id: int) -> Document | None:
-        return await self.session.get(Document, document_id)
+        return await self.repo.get(document_id)
 
     async def find_all(self) -> list[Document]:
-        result = await self.session.execute(select(Document).order_by(Document.created_at.desc()))
-        return list(result.scalars().all())
+        return await self.repo.find_all()
 
     async def delete(self, document_id: int) -> bool:
-        document = await self.get(document_id)
+        document = await self.repo.get(document_id)
         if document is None:
             return False
 
@@ -48,6 +42,4 @@ class DocumentService:
         if file_path.exists():
             file_path.unlink()
 
-        await self.session.delete(document)
-        await self.session.flush()
-        return True
+        return await self.repo.delete(document_id)

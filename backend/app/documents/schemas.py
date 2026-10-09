@@ -6,18 +6,18 @@ from app.documents.models import DocumentStatus
 
 
 class DocumentOut(BaseModel):
-    id: int
+    id: int | None
     filename: str
     content_type: str
     status: DocumentStatus
     page_count: int | None
-    created_at: datetime
+    created_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class ChunkOut(BaseModel):
-    id: int
+    id: int | None
     index: int
     text: str
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from core.config import settings
 from core.database import Base
-from app.documents.models import Document, Chunk  # noqa: F401 — register models
+from app.documents.db_models import DocumentORM, ChunkORM  # noqa: F401 — register models
 
 config = context.config
 if config.config_file_name is not None:
