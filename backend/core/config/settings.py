@@ -7,20 +7,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR.parent / ".env",
+        env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ragchat"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5434/ragchat"
 
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
 
-    qdrant_url: str = "http://localhost:6333"
+    qdrant_url: str = "http://localhost:6335"
     qdrant_collection: str = "documents"
 
     upload_dir: Path = BASE_DIR / "uploads"
