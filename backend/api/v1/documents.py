@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_session
-from app.documents.repository_impl import SQLAlchemyDocumentRepository
+from app.documents.repository_impl import SQLAlchemyChunkRepository, SQLAlchemyDocumentRepository
 from app.documents.schemas import DocumentOut
 from app.documents.service import DocumentService
 
@@ -12,7 +12,10 @@ ALLOWED_TYPES = {"application/pdf", "application/vnd.openxmlformats-officedocume
 
 
 def _get_service(session: AsyncSession = Depends(get_session)) -> DocumentService:
-    return DocumentService(repo=SQLAlchemyDocumentRepository(session))
+    return DocumentService(
+        doc_repo=SQLAlchemyDocumentRepository(session),
+        chunk_repo=SQLAlchemyChunkRepository(session),
+    )
 
 
 @router.post("/", response_model=DocumentOut, status_code=201)
@@ -26,6 +29,20 @@ async def upload_document(
 
     content = await file.read()
     document = await service.upload(file.filename or "unnamed", file.content_type or "application/octet-stream", content)
+    await session.commit()
+    return document
+
+
+@router.post("/{document_id}/process", response_model=DocumentOut)
+async def process_document(
+    document_id: int,
+    session: AsyncSession = Depends(get_session),
+    service: DocumentService = Depends(_get_service),
+):
+    try:
+        document = await service.process(document_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document not found")
     await session.commit()
     return document
 

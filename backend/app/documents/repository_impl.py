@@ -1,8 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.documents.db_models import DocumentORM
-from app.documents.models import Document
+from app.documents.db_models import ChunkORM, DocumentORM
+from app.documents.models import Chunk, Document
 
 
 class SQLAlchemyDocumentRepository:
@@ -68,4 +68,51 @@ class SQLAlchemyDocumentRepository:
             error_message=orm.error_message,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
+        )
+
+
+class SQLAlchemyChunkRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def add_many(self, chunks: list[Chunk]) -> list[Chunk]:
+        orms = [
+            ChunkORM(
+                document_id=c.document_id,
+                index=c.index,
+                text=c.text,
+                embedding_id=c.embedding_id,
+            )
+            for c in chunks
+        ]
+        self.session.add_all(orms)
+        await self.session.flush()
+        for chunk, orm in zip(chunks, orms):
+            chunk.id = orm.id
+            chunk.created_at = orm.created_at
+        return chunks
+
+    async def find_by_document(self, document_id: int) -> list[Chunk]:
+        result = await self.session.execute(
+            select(ChunkORM)
+            .where(ChunkORM.document_id == document_id)
+            .order_by(ChunkORM.index)
+        )
+        return [self._to_domain(row) for row in result.scalars().all()]
+
+    async def delete_by_document(self, document_id: int) -> None:
+        await self.session.execute(
+            delete(ChunkORM).where(ChunkORM.document_id == document_id)
+        )
+        await self.session.flush()
+
+    @staticmethod
+    def _to_domain(orm: ChunkORM) -> Chunk:
+        return Chunk(
+            id=orm.id,
+            document_id=orm.document_id,
+            index=orm.index,
+            text=orm.text,
+            embedding_id=orm.embedding_id,
+            created_at=orm.created_at,
         )
