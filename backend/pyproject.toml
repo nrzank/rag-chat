@@ -38,6 +38,11 @@ select = [
     "C4",   # flake8-comprehensions
     "RUF",  # ruff-specific
 ]
+ignore = [
+    "RUF001",  # ambiguous unicode in strings — prompts are in Russian
+    "RUF002",  # ambiguous unicode in docstrings
+    "RUF003",  # ambiguous unicode in comments
+]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "fastapi.Header", "fastapi.File", "fastapi.Form"]

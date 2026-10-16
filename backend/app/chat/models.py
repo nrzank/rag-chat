@@ -16,6 +16,12 @@ class SourceRef:
 
 
 @dataclass
+class StreamEvent:
+    event: str
+    data: dict
+
+
+@dataclass
 class Conversation:
     id: int | None = None
     title: str = ""

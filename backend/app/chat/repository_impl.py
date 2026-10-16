@@ -29,6 +29,15 @@ class SQLAlchemyConversationRepository:
         result = await self.session.execute(select(ConversationORM).order_by(ConversationORM.created_at.desc()))
         return [self._to_domain(row) for row in result.scalars().all()]
 
+    async def update(self, conversation: Conversation) -> Conversation:
+        orm = await self.session.get(ConversationORM, conversation.id)
+        if orm is None:
+            raise ValueError(f"Conversation {conversation.id} not found")
+        orm.title = conversation.title
+        await self.session.flush()
+        conversation.updated_at = orm.updated_at
+        return conversation
+
     async def delete(self, conversation_id: int) -> bool:
         orm = await self.session.get(ConversationORM, conversation_id)
         if orm is None:

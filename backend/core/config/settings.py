@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     upload_dir: Path = BASE_DIR / "uploads"
 
+    retrieval_top_k: int = 5
+
     chunk_size: int = 512
     chunk_overlap: int = 64
 
