@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from pypdf import PdfReader
 from docx import Document as DocxDocument
+from pypdf import PdfReader
 
 
 def parse_pdf(file_path: str) -> tuple[str, int]:

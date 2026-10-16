@@ -1,9 +1,9 @@
-import enum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 
-class DocumentStatus(str, enum.Enum):
+class DocumentStatus(StrEnum):
     pending = "pending"
     processing = "processing"
     ready = "ready"

@@ -67,6 +67,9 @@ Four layers, strict dependency direction: **domain → application → infrastru
 
 Before declaring backend changes complete, run from `backend/`:
 ```bash
-uv run ruff format --check .
+uv run ruff format .
 uv run ruff check .
 ```
+
+Both must pass clean. `zip()` always takes `strict=True` — silent truncation
+on mismatched lengths is a real bug source when pairing chunks with embeddings.

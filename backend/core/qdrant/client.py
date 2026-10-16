@@ -50,7 +50,7 @@ class QdrantVectorStore:
                 vector=vector,
                 payload={"document_id": document_id, "chunk_index": index, "text": text},
             )
-            for pid, index, text, vector in zip(ids, chunk_indexes, texts, vectors)
+            for pid, index, text, vector in zip(ids, chunk_indexes, texts, vectors, strict=True)
         ]
         await self._client.upsert(collection_name=self._collection, points=points)
         return ids

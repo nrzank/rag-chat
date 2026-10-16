@@ -10,7 +10,11 @@ from core.qdrant import qdrant_client
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-ALLOWED_TYPES = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"}
+ALLOWED_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+}
 
 
 def _get_service(session: AsyncSession = Depends(get_session)) -> DocumentService:
@@ -32,7 +36,11 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
 
     content = await file.read()
-    document = await service.upload(file.filename or "unnamed", file.content_type or "application/octet-stream", content)
+    document = await service.upload(
+        filename=file.filename or "unnamed",
+        content_type=file.content_type or "application/octet-stream",
+        file_bytes=content,
+    )
     await session.commit()
     return document
 
@@ -45,8 +53,8 @@ async def process_document(
 ):
     try:
         document = await service.process(document_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Document not found")
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Document not found") from e
     await session.commit()
     return document
 

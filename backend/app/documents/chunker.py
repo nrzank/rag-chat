@@ -11,11 +11,13 @@ def chunk_text(text: str, document_id: int, chunk_size: int = 512, chunk_overlap
         chunk_text_slice = text[start:end]
 
         if chunk_text_slice.strip():
-            chunks.append(Chunk(
-                document_id=document_id,
-                index=index,
-                text=chunk_text_slice.strip(),
-            ))
+            chunks.append(
+                Chunk(
+                    document_id=document_id,
+                    index=index,
+                    text=chunk_text_slice.strip(),
+                )
+            )
             index += 1
 
         start += chunk_size - chunk_overlap

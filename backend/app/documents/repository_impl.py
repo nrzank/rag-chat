@@ -29,9 +29,7 @@ class SQLAlchemyDocumentRepository:
         return self._to_domain(orm)
 
     async def find_all(self) -> list[Document]:
-        result = await self.session.execute(
-            select(DocumentORM).order_by(DocumentORM.created_at.desc())
-        )
+        result = await self.session.execute(select(DocumentORM).order_by(DocumentORM.created_at.desc()))
         return [self._to_domain(row) for row in result.scalars().all()]
 
     async def update(self, document: Document) -> Document:
@@ -87,23 +85,19 @@ class SQLAlchemyChunkRepository:
         ]
         self.session.add_all(orms)
         await self.session.flush()
-        for chunk, orm in zip(chunks, orms):
+        for chunk, orm in zip(chunks, orms, strict=True):
             chunk.id = orm.id
             chunk.created_at = orm.created_at
         return chunks
 
     async def find_by_document(self, document_id: int) -> list[Chunk]:
         result = await self.session.execute(
-            select(ChunkORM)
-            .where(ChunkORM.document_id == document_id)
-            .order_by(ChunkORM.index)
+            select(ChunkORM).where(ChunkORM.document_id == document_id).order_by(ChunkORM.index)
         )
         return [self._to_domain(row) for row in result.scalars().all()]
 
     async def delete_by_document(self, document_id: int) -> None:
-        await self.session.execute(
-            delete(ChunkORM).where(ChunkORM.document_id == document_id)
-        )
+        await self.session.execute(delete(ChunkORM).where(ChunkORM.document_id == document_id))
         await self.session.flush()
 
     @staticmethod

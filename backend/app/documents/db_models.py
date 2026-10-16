@@ -11,9 +11,7 @@ class DocumentORM(Base):
     filename: Mapped[str] = mapped_column(String(512))
     content_type: Mapped[str] = mapped_column(String(128))
     file_path: Mapped[str] = mapped_column(String(1024))
-    status: Mapped[DocumentStatus] = mapped_column(
-        Enum(DocumentStatus), default=DocumentStatus.pending
-    )
+    status: Mapped[DocumentStatus] = mapped_column(Enum(DocumentStatus), default=DocumentStatus.pending)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -12,9 +12,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5434/ragchat"
-
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"

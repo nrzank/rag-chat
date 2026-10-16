@@ -86,7 +86,7 @@ class DocumentService:
             texts=texts,
             vectors=vectors,
         )
-        for chunk, point_id in zip(chunks, point_ids):
+        for chunk, point_id in zip(chunks, point_ids, strict=True):
             chunk.embedding_id = point_id
 
     async def get(self, document_id: int) -> Document | None:
