@@ -5,6 +5,8 @@ from api.deps import get_session
 from app.documents.repository_impl import SQLAlchemyChunkRepository, SQLAlchemyDocumentRepository
 from app.documents.schemas import DocumentOut
 from app.documents.service import DocumentService
+from core.openai import openai_client
+from core.qdrant import qdrant_client
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -15,6 +17,8 @@ def _get_service(session: AsyncSession = Depends(get_session)) -> DocumentServic
     return DocumentService(
         doc_repo=SQLAlchemyDocumentRepository(session),
         chunk_repo=SQLAlchemyChunkRepository(session),
+        embedder=openai_client,
+        vector_store=qdrant_client,
     )
 
 

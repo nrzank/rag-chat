@@ -1,16 +1,25 @@
 from pathlib import Path
 
 from app.documents.chunker import chunk_text
-from app.documents.models import Document, DocumentStatus
+from app.documents.models import Chunk, Document, DocumentStatus
 from app.documents.parser import parse_document
+from app.documents.ports import Embedder, VectorStore
 from app.documents.repository import ChunkRepository, DocumentRepository
 from core.config import settings
 
 
 class DocumentService:
-    def __init__(self, doc_repo: DocumentRepository, chunk_repo: ChunkRepository) -> None:
+    def __init__(
+        self,
+        doc_repo: DocumentRepository,
+        chunk_repo: ChunkRepository,
+        embedder: Embedder,
+        vector_store: VectorStore,
+    ) -> None:
         self.doc_repo = doc_repo
         self.chunk_repo = chunk_repo
+        self.embedder = embedder
+        self.vector_store = vector_store
 
     async def upload(self, filename: str, content_type: str, file_bytes: bytes) -> Document:
         upload_dir = Path(settings.upload_dir)
@@ -39,18 +48,23 @@ class DocumentService:
         document = await self.doc_repo.update(document)
 
         try:
+            await self.vector_store.delete_document(document_id)
+            await self.chunk_repo.delete_by_document(document_id)
+
             text, page_count = parse_document(document.file_path, document.content_type)
             document.page_count = page_count
 
             chunks = chunk_text(
                 text,
-                document_id=document.id,
+                document_id=document_id,
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
             )
+            await self._index(document_id, chunks)
             await self.chunk_repo.add_many(chunks)
 
             document.status = DocumentStatus.ready
+            document.error_message = None
             document = await self.doc_repo.update(document)
 
         except Exception as e:
@@ -59,6 +73,21 @@ class DocumentService:
             document = await self.doc_repo.update(document)
 
         return document
+
+    async def _index(self, document_id: int, chunks: list[Chunk]) -> None:
+        if not chunks:
+            return
+
+        texts = [chunk.text for chunk in chunks]
+        vectors = await self.embedder.embed(texts)
+        point_ids = await self.vector_store.upsert(
+            document_id=document_id,
+            chunk_indexes=[chunk.index for chunk in chunks],
+            texts=texts,
+            vectors=vectors,
+        )
+        for chunk, point_id in zip(chunks, point_ids):
+            chunk.embedding_id = point_id
 
     async def get(self, document_id: int) -> Document | None:
         return await self.doc_repo.get(document_id)
@@ -71,6 +100,7 @@ class DocumentService:
         if document is None:
             return False
 
+        await self.vector_store.delete_document(document_id)
         await self.chunk_repo.delete_by_document(document_id)
 
         file_path = Path(document.file_path)
