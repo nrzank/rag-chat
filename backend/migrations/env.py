@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.chat.db_models import ConversationORM, MessageORM  # noqa: F401 — register models
 from app.documents.db_models import ChunkORM, DocumentORM  # noqa: F401 — register models
 from core.config import settings
 from core.database import Base
