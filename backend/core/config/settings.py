@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     qdrant_url: str = "http://localhost:6335"
     qdrant_collection: str = "documents"
+    embedding_dim: int = 1536
 
     upload_dir: Path = BASE_DIR / "uploads"
 
