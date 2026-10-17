@@ -1,3 +1,26 @@
+# Работа над этим проектом
+
+RAG-чат: загрузка документов, векторный поиск, стриминг ответа LLM.
+Пет-проект, работаем на `main`, без веток и PR.
+
+## Что читать и когда
+
+| Файл | Когда читать |
+|---|---|
+| [docs/STATUS.md](docs/STATUS.md) | Всегда первым: что сделано, что дальше, известные долги |
+| [docs/CONTEXT.md](docs/CONTEXT.md) | Перед изменением логики домена: словарь терминов и инварианты |
+| [README.md](README.md) | Нужен список эндпоинтов, формат SSE или команды запуска |
+| [docs/specs/](docs/specs/) | Берёшься за новую фичу — спецификация лежит здесь |
+
+Ниже — правила, которые действуют всегда.
+
+## Запуск
+
+Все команды из `backend/`, через `uv run`. Инфраструктура поднимается
+`docker compose up -d db qdrant` из корня.
+
+Никогда не коммитить `.env` и реальные ключи.
+
 ## Architecture — DDD / Clean Architecture
 
 Four layers, strict dependency direction: **domain → application → infrastructure → presentation**.

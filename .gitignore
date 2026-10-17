@@ -10,3 +10,7 @@ build/
 node_modules/
 frontend/dist/
 *.db
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+uploads/
