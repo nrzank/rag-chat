@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_session
+from app.base.exceptions import DocumentNotFoundError, UnsupportedFileTypeError
 from app.documents.repository_impl import SQLAlchemyChunkRepository, SQLAlchemyDocumentRepository
 from app.documents.schemas import DocumentOut
 from app.documents.service import DocumentService
@@ -33,7 +34,10 @@ async def upload_document(
     service: DocumentService = Depends(_get_service),
 ):
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
+        raise UnsupportedFileTypeError(
+            "Unsupported file type",
+            params={"content_type": file.content_type, "allowed": sorted(ALLOWED_TYPES)},
+        )
 
     content = await file.read()
     document = await service.upload(
@@ -51,10 +55,7 @@ async def process_document(
     session: AsyncSession = Depends(get_session),
     service: DocumentService = Depends(_get_service),
 ):
-    try:
-        document = await service.process(document_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Document not found") from e
+    document = await service.process(document_id)
     await session.commit()
     return document
 
@@ -68,7 +69,7 @@ async def list_documents(service: DocumentService = Depends(_get_service)):
 async def get_document(document_id: int, service: DocumentService = Depends(_get_service)):
     document = await service.get(document_id)
     if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise DocumentNotFoundError("Document not found", params={"document_id": document_id})
     return document
 
 
@@ -80,5 +81,5 @@ async def delete_document(
 ):
     deleted = await service.delete(document_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise DocumentNotFoundError("Document not found", params={"document_id": document_id})
     await session.commit()

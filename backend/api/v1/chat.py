@@ -1,11 +1,13 @@
 import json
+import logging
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from api.deps import get_session
+from app.base.exceptions import AppError, ConversationNotFoundError
 from app.chat.repository_impl import (
     SQLAlchemyConversationRepository,
     SQLAlchemyMessageRepository,
@@ -14,6 +16,8 @@ from app.chat.schemas import AskIn, ConversationDetailOut, ConversationOut
 from app.chat.service import ChatService
 from core.openai import openai_client
 from core.qdrant import qdrant_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["chat"])
 
@@ -50,7 +54,7 @@ async def get_conversation(
 ):
     conversation = await service.get_conversation(conversation_id)
     if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise ConversationNotFoundError("Conversation not found", params={"conversation_id": conversation_id})
 
     messages = await service.get_messages(conversation_id)
     return ConversationDetailOut(
@@ -69,7 +73,7 @@ async def delete_conversation(
 ):
     deleted = await service.delete_conversation(conversation_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise ConversationNotFoundError("Conversation not found", params={"conversation_id": conversation_id})
     await session.commit()
 
 
@@ -81,7 +85,7 @@ async def ask(
     service: ChatService = Depends(_get_service),
 ):
     if await service.get_conversation(conversation_id) is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise ConversationNotFoundError("Conversation not found", params={"conversation_id": conversation_id})
 
     async def event_stream() -> AsyncIterator[dict[str, str]]:
         try:
@@ -92,8 +96,14 @@ async def ask(
             ):
                 yield {"event": event.event, "data": json.dumps(event.data, ensure_ascii=False)}
             await session.commit()
-        except Exception as e:
+        except AppError as e:
             await session.rollback()
-            yield {"event": "error", "data": json.dumps({"detail": str(e)}, ensure_ascii=False)}
+            payload = {"code": e.code, "message": e.message, "params": e.params}
+            yield {"event": "error", "data": json.dumps(payload, ensure_ascii=False)}
+        except Exception:
+            await session.rollback()
+            logger.exception("ask stream failed for conversation %s", conversation_id)
+            payload = {"code": "internal_error", "message": "Internal server error", "params": {}}
+            yield {"event": "error", "data": json.dumps(payload, ensure_ascii=False)}
 
     return EventSourceResponse(event_stream())

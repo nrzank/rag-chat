@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from dataclasses import asdict
 
+from app.base.exceptions import ConversationNotFoundError
 from app.chat.models import (
     Conversation,
     Message,
@@ -54,7 +55,10 @@ class ChatService:
     ) -> AsyncIterator[StreamEvent]:
         conversation = await self.conv_repo.get(conversation_id)
         if conversation is None:
-            raise ValueError(f"Conversation {conversation_id} not found")
+            raise ConversationNotFoundError(
+                "Conversation not found",
+                params={"conversation_id": conversation_id},
+            )
 
         history = await self.msg_repo.find_by_conversation(conversation_id)
 

@@ -1,6 +1,7 @@
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.base.exceptions import DocumentNotFoundError
 from app.documents.db_models import ChunkORM, DocumentORM
 from app.documents.models import Chunk, Document
 
@@ -35,7 +36,7 @@ class SQLAlchemyDocumentRepository:
     async def update(self, document: Document) -> Document:
         orm = await self.session.get(DocumentORM, document.id)
         if orm is None:
-            raise ValueError(f"Document {document.id} not found")
+            raise DocumentNotFoundError("Document not found", params={"document_id": document.id})
         orm.filename = document.filename
         orm.content_type = document.content_type
         orm.file_path = document.file_path

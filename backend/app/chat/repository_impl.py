@@ -3,6 +3,7 @@ from dataclasses import asdict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.base.exceptions import ConversationNotFoundError
 from app.chat.db_models import ConversationORM, MessageORM
 from app.chat.models import Conversation, Message, SourceRef
 
@@ -32,7 +33,7 @@ class SQLAlchemyConversationRepository:
     async def update(self, conversation: Conversation) -> Conversation:
         orm = await self.session.get(ConversationORM, conversation.id)
         if orm is None:
-            raise ValueError(f"Conversation {conversation.id} not found")
+            raise ConversationNotFoundError("Conversation not found", params={"conversation_id": conversation.id})
         orm.title = conversation.title
         await self.session.flush()
         conversation.updated_at = orm.updated_at

@@ -1,11 +1,15 @@
+import logging
 from pathlib import Path
 
+from app.base.exceptions import DocumentNotFoundError
 from app.documents.chunker import chunk_text
 from app.documents.models import Chunk, Document, DocumentStatus
 from app.documents.parser import parse_document
 from app.documents.ports import Embedder, VectorStore
 from app.documents.repository import ChunkRepository, DocumentRepository
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -42,7 +46,10 @@ class DocumentService:
     async def process(self, document_id: int) -> Document:
         document = await self.doc_repo.get(document_id)
         if document is None:
-            raise ValueError(f"Document {document_id} not found")
+            raise DocumentNotFoundError(
+                "Document not found",
+                params={"document_id": document_id},
+            )
 
         document.status = DocumentStatus.processing
         document = await self.doc_repo.update(document)
@@ -68,6 +75,7 @@ class DocumentService:
             document = await self.doc_repo.update(document)
 
         except Exception as e:
+            logger.exception("processing failed for document %s", document_id)
             document.status = DocumentStatus.failed
             document.error_message = str(e)
             document = await self.doc_repo.update(document)

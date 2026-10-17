@@ -3,6 +3,8 @@ from pathlib import Path
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 
+from app.base.exceptions import DocumentParsingError
+
 
 def parse_pdf(file_path: str) -> tuple[str, int]:
     reader = PdfReader(file_path)
@@ -31,5 +33,8 @@ PARSERS = {
 def parse_document(file_path: str, content_type: str) -> tuple[str, int]:
     parser = PARSERS.get(content_type)
     if parser is None:
-        raise ValueError(f"Unsupported content type: {content_type}")
+        raise DocumentParsingError(
+            "Unsupported content type for parsing",
+            params={"content_type": content_type},
+        )
     return parser(file_path)
