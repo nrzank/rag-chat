@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -28,6 +29,14 @@ class Settings(BaseSettings):
 
     chunk_size: int = 512
     chunk_overlap: int = 64
+
+    @model_validator(mode="after")
+    def check_chunking(self) -> "Settings":
+        if not 0 <= self.chunk_overlap < self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap must be in [0, chunk_size), got {self.chunk_overlap} with chunk_size={self.chunk_size}"
+            )
+        return self
 
 
 settings = Settings()

@@ -58,5 +58,12 @@ indent-style = "space"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.170.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.17.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
