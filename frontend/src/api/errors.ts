@@ -4,6 +4,7 @@ const MESSAGES: Record<string, string> = {
   document_not_found: "Документ не найден",
   conversation_not_found: "Диалог не найден",
   unsupported_file_type: "Такой тип файла не поддерживается",
+  file_too_large: "Файл слишком большой",
   document_parsing_failed: "Не удалось разобрать файл",
   validation_error: "Некорректный запрос",
   not_found: "Не найдено",

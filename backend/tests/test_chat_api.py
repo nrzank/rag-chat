@@ -127,3 +127,31 @@ async def test_conversation_crud(api, chat_service, fake_session):
     assert deleted.status_code == 204
 
     assert (await api.get(f"/api/v1/conversations/{conversation_id}")).status_code == 404
+
+
+async def test_validation_error_keeps_the_error_contract(api, chat_service):
+    """FastAPI's default 422 body breaks {code, message, params} and echoes input back."""
+    conversation = await chat_service.create_conversation()
+
+    response = await api.post(
+        f"/api/v1/conversations/{conversation.id}/ask",
+        json={"question": ""},
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["code"] == "validation_error"
+    assert body["params"]["fields"] == ["question"]
+    assert "detail" not in body
+
+
+async def test_overlong_question_is_rejected(api, chat_service):
+    conversation = await chat_service.create_conversation()
+
+    response = await api.post(
+        f"/api/v1/conversations/{conversation.id}/ask",
+        json={"question": "a" * 10_000},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
