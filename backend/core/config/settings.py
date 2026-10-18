@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     upload_dir: Path = BASE_DIR / "uploads"
 
+    cors_origins: list[str] = ["http://localhost:5173"]
+
     retrieval_top_k: int = 5
 
     chunk_size: int = 512

@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from app.base.exceptions import DocumentNotFoundError
+from app.base.exceptions import AppError, DocumentNotFoundError
 from app.documents.chunker import chunk_text
 from app.documents.models import Chunk, Document, DocumentStatus
 from app.documents.parser import parse_document
@@ -74,10 +74,16 @@ class DocumentService:
             document.error_message = None
             document = await self.doc_repo.update(document)
 
-        except Exception as e:
+        except AppError as e:
             logger.exception("processing failed for document %s", document_id)
             document.status = DocumentStatus.failed
-            document.error_message = str(e)
+            document.error_message = e.message
+            document = await self.doc_repo.update(document)
+
+        except Exception:
+            logger.exception("processing failed for document %s", document_id)
+            document.status = DocumentStatus.failed
+            document.error_message = "Не удалось обработать документ"
             document = await self.doc_repo.update(document)
 
         return document

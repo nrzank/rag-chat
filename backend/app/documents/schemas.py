@@ -11,6 +11,7 @@ class DocumentOut(BaseModel):
     content_type: str
     status: DocumentStatus
     page_count: int | None
+    error_message: str | None
     created_at: datetime | None
 
     model_config = {"from_attributes": True}
