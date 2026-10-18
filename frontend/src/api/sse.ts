@@ -47,21 +47,26 @@ export async function* streamAsk(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
 
-    let match = SEPARATOR.exec(buffer);
-    while (match !== null) {
-      const parsed = parseFrame(buffer.slice(0, match.index));
-      buffer = buffer.slice(match.index + match[0].length);
-      if (parsed) yield parsed;
-      match = SEPARATOR.exec(buffer);
+      let match = SEPARATOR.exec(buffer);
+      while (match !== null) {
+        const parsed = parseFrame(buffer.slice(0, match.index));
+        buffer = buffer.slice(match.index + match[0].length);
+        if (parsed) yield parsed;
+        match = SEPARATOR.exec(buffer);
+      }
     }
-  }
 
-  const trailing = parseFrame(buffer);
-  if (trailing) yield trailing;
+    const trailing = parseFrame(buffer);
+    if (trailing) yield trailing;
+  } finally {
+    // An abandoned generator would otherwise hold the connection open.
+    await reader.cancel().catch(() => {});
+  }
 }

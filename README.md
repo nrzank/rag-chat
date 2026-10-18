@@ -63,7 +63,7 @@ cd backend && uv run alembic upgrade head
 4. Start the API:
 
 ```bash
-cd backend && uv run uvicorn app.main:app --reload --port 8001
+cd backend && uv run uvicorn main:app --reload --port 8001
 ```
 
 5. Start the worker in another terminal — it does the document processing:
@@ -152,7 +152,8 @@ Current state of the work is in [docs/STATUS.md](docs/STATUS.md).
 
 ```
 backend/
-├── api/              # HTTP: routers, dependencies, exception handlers
+├── main.py           # Entry point: app, middleware, lifespan
+├── api/              # HTTP: routers, composition root, exception handlers
 │   └── v1/
 ├── app/              # Domain and business logic
 │   ├── base/         # Typed exceptions

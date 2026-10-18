@@ -121,6 +121,6 @@ frontend/
   showing it. Added to the schema.
 - The raw OpenAI error text leaked into the UI. Now a sanitized message goes out
   and the detail stays in the logs.
-- CORS added: `CORSMiddleware` in `app/main.py`, origin in `settings.cors_origins`.
+- CORS added: `CORSMiddleware` in `main.py`, origin in `settings.cors_origins`.
 - Processing became asynchronous after this spec was written: `process` now
   returns `202` and the UI polls the status while it is `queued` or `processing`.

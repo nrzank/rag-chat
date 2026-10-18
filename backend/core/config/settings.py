@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     worker_batch_size: int = 5
     worker_lease_seconds: int = 300
 
+    max_upload_bytes: int = 10 * 1024 * 1024
+    max_question_length: int = 4000
+    max_document_filter: int = 50
+
     chunk_size: int = 512
     chunk_overlap: int = 64
 

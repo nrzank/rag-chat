@@ -25,18 +25,24 @@ export function ChatView({
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
+  const inFlight = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setMessages([]);
     setAnswer("");
     setSources([]);
     setError("");
+    setStreaming(false);
     if (conversationId === null) return;
 
     api
       .getConversation(conversationId)
       .then((detail) => setMessages(detail.messages))
       .catch((e) => setError(describe(e)));
+
+    // Abandon a stream still running for the previous conversation, or its
+    // tokens keep landing in this one.
+    return () => inFlight.current?.abort();
   }, [conversationId]);
 
   useEffect(() => {
@@ -58,6 +64,8 @@ export function ChatView({
     ]);
 
     const controller = new AbortController();
+    inFlight.current = controller;
+
     let streamed = "";
     let received: Source[] = [];
     let failed = false;
@@ -83,11 +91,17 @@ export function ChatView({
         }
       }
     } catch (e) {
+      if (controller.signal.aborted) return;
       failed = true;
       setError(describe(e));
     } finally {
+      if (inFlight.current === controller) inFlight.current = null;
       setStreaming(false);
     }
+
+    // The user switched conversation mid-stream: nothing here belongs to the
+    // conversation now on screen.
+    if (controller.signal.aborted) return;
 
     if (failed || streamed === "") {
       setMessages((current) => current.slice(0, -1));

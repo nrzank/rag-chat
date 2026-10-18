@@ -1,7 +1,8 @@
 import logging
+import re
 from pathlib import Path
 
-from app.base.exceptions import DocumentNotFoundError
+from app.base.exceptions import DocumentNotFoundError, DocumentParsingError
 from app.documents.chunker import chunk_text
 from app.documents.models import Chunk, Document, DocumentStatus
 from app.documents.parser import parse_document
@@ -10,6 +11,16 @@ from app.documents.repository import ChunkRepository, DocumentRepository
 from core.config import settings
 
 logger = logging.getLogger(__name__)
+
+SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+FILENAME_MAX_LENGTH = 100
+
+
+def safe_filename(filename: str) -> str:
+    """Only ever used to build a path on disk. The original name is kept in the DB for display."""
+    stem = Path(filename).name
+    cleaned = SAFE_FILENAME.sub("_", stem).lstrip(".")
+    return cleaned[:FILENAME_MAX_LENGTH] or "file"
 
 
 class DocumentService:
@@ -36,7 +47,7 @@ class DocumentService:
         )
         document = await self.doc_repo.add(document)
 
-        file_path = upload_dir / f"{document.id}_{filename}"
+        file_path = upload_dir / f"{document.id}_{safe_filename(filename)}"
         file_path.write_bytes(file_bytes)
         document.file_path = str(file_path)
         document = await self.doc_repo.update(document)
@@ -83,6 +94,12 @@ class DocumentService:
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
         )
+        if not chunks:
+            raise DocumentParsingError(
+                "Document contains no extractable text",
+                params={"document_id": document_id},
+            )
+
         await self._index(document_id, chunks)
         await self.chunk_repo.add_many(chunks)
 
@@ -100,9 +117,6 @@ class DocumentService:
         return await self.doc_repo.update(document)
 
     async def _index(self, document_id: int, chunks: list[Chunk]) -> None:
-        if not chunks:
-            return
-
         texts = [chunk.text for chunk in chunks]
         vectors = await self.embedder.embed(texts)
         point_ids = await self.vector_store.upsert(

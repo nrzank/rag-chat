@@ -87,7 +87,7 @@ docker compose up -d db qdrant
 cd backend && uv run alembic upgrade head
 cd backend && uv run pytest -q          # 37 passed
 cd backend && uv run ruff check .       # All checks passed
-cd backend && uv run uvicorn app.main:app --reload --port 8001
+cd backend && uv run uvicorn main:app --reload --port 8001
 cd backend && uv run python -m workers.runner   # in another terminal
 
 cd frontend && npm install

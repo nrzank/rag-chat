@@ -104,3 +104,13 @@ async def test_delete_removes_file_chunks_and_vectors(service, tmp_path):
 
 async def test_delete_unknown_document_returns_false(service):
     assert await service.delete(999) is False
+
+
+async def test_document_without_extractable_text_fails_instead_of_ready(service):
+    """Invariant: a ready document has at least one chunk. A scanned PDF yields none."""
+    document = await service.upload("blank.txt", "text/plain", b"   \n\n   \t  ")
+
+    with pytest.raises(DocumentParsingError):
+        await service.process(document.id)
+
+    assert await service.chunk_repo.find_by_document(document.id) == []

@@ -44,7 +44,11 @@ Four layers, strict dependency direction: **domain → application → infrastru
   infrastructure.** Inject DB session, Qdrant client, OpenAI client.
 - **Each domain owns its data.** `app/documents/` never queries chat tables
   directly; cross-domain access goes through the owning domain's service.
-- `api/` never imports `core/` directly — it goes through `app/` services.
+- `main.py` is the entry point and sits above every layer; `api/deps.py` is the
+  composition root. Those two are the only places allowed to wire concrete
+  infrastructure (`openai_client`, `qdrant_client`, `async_session`) to services.
+- Routers never import infrastructure clients from `core/`. They depend on the
+  factories in `api/deps.py`. Reading `core.config.settings` is fine anywhere.
 - `app/` never imports `api/`.
 - `core/` never imports `app/`.
 

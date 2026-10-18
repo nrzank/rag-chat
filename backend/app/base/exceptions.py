@@ -40,6 +40,11 @@ class UnsupportedFileTypeError(ValidationError):
     code = "unsupported_file_type"
 
 
+class FileTooLargeError(ValidationError):
+    code = "file_too_large"
+    status_code = 413
+
+
 class DocumentParsingError(AppError):
     code = "document_parsing_failed"
     status_code = 422

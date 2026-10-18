@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.chat.models import MessageRole
+from core.config import settings
 
 
 class SourceOut(BaseModel):
@@ -34,5 +35,5 @@ class ConversationDetailOut(ConversationOut):
 
 
 class AskIn(BaseModel):
-    question: str
-    document_ids: list[int] | None = None
+    question: str = Field(min_length=1, max_length=settings.max_question_length)
+    document_ids: list[int] | None = Field(default=None, max_length=settings.max_document_filter)
