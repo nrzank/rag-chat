@@ -5,6 +5,7 @@ from enum import StrEnum
 
 class DocumentStatus(StrEnum):
     pending = "pending"
+    queued = "queued"
     processing = "processing"
     ready = "ready"
     failed = "failed"

@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from app.base.exceptions import AppError, DocumentNotFoundError
+from app.base.exceptions import DocumentNotFoundError
 from app.documents.chunker import chunk_text
 from app.documents.models import Chunk, Document, DocumentStatus
 from app.documents.parser import parse_document
@@ -43,6 +43,26 @@ class DocumentService:
 
         return document
 
+    async def mark_queued(self, document_id: int) -> Document:
+        document = await self.doc_repo.get(document_id)
+        if document is None:
+            raise DocumentNotFoundError(
+                "Document not found",
+                params={"document_id": document_id},
+            )
+
+        document.status = DocumentStatus.queued
+        document.error_message = None
+        return await self.doc_repo.update(document)
+
+    async def mark_processing(self, document_id: int) -> Document | None:
+        document = await self.doc_repo.get(document_id)
+        if document is None:
+            return None
+
+        document.status = DocumentStatus.processing
+        return await self.doc_repo.update(document)
+
     async def process(self, document_id: int) -> Document:
         document = await self.doc_repo.get(document_id)
         if document is None:
@@ -51,42 +71,33 @@ class DocumentService:
                 params={"document_id": document_id},
             )
 
-        document.status = DocumentStatus.processing
-        document = await self.doc_repo.update(document)
+        await self.vector_store.delete_document(document_id)
+        await self.chunk_repo.delete_by_document(document_id)
 
-        try:
-            await self.vector_store.delete_document(document_id)
-            await self.chunk_repo.delete_by_document(document_id)
+        text, page_count = parse_document(document.file_path, document.content_type)
+        document.page_count = page_count
 
-            text, page_count = parse_document(document.file_path, document.content_type)
-            document.page_count = page_count
+        chunks = chunk_text(
+            text,
+            document_id=document_id,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+        )
+        await self._index(document_id, chunks)
+        await self.chunk_repo.add_many(chunks)
 
-            chunks = chunk_text(
-                text,
-                document_id=document_id,
-                chunk_size=settings.chunk_size,
-                chunk_overlap=settings.chunk_overlap,
-            )
-            await self._index(document_id, chunks)
-            await self.chunk_repo.add_many(chunks)
+        document.status = DocumentStatus.ready
+        document.error_message = None
+        return await self.doc_repo.update(document)
 
-            document.status = DocumentStatus.ready
-            document.error_message = None
-            document = await self.doc_repo.update(document)
+    async def mark_failed(self, document_id: int, message: str) -> Document | None:
+        document = await self.doc_repo.get(document_id)
+        if document is None:
+            return None
 
-        except AppError as e:
-            logger.exception("processing failed for document %s", document_id)
-            document.status = DocumentStatus.failed
-            document.error_message = e.message
-            document = await self.doc_repo.update(document)
-
-        except Exception:
-            logger.exception("processing failed for document %s", document_id)
-            document.status = DocumentStatus.failed
-            document.error_message = "Не удалось обработать документ"
-            document = await self.doc_repo.update(document)
-
-        return document
+        document.status = DocumentStatus.failed
+        document.error_message = message
+        return await self.doc_repo.update(document)
 
     async def _index(self, document_id: int, chunks: list[Chunk]) -> None:
         if not chunks:

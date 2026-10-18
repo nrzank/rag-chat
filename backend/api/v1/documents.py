@@ -6,6 +6,8 @@ from app.base.exceptions import DocumentNotFoundError, UnsupportedFileTypeError
 from app.documents.repository_impl import SQLAlchemyChunkRepository, SQLAlchemyDocumentRepository
 from app.documents.schemas import DocumentOut
 from app.documents.service import DocumentService
+from app.jobs.repository_impl import SQLAlchemyJobRepository
+from app.jobs.service import JobService
 from core.openai import openai_client
 from core.qdrant import qdrant_client
 
@@ -49,13 +51,19 @@ async def upload_document(
     return document
 
 
-@router.post("/{document_id}/process", response_model=DocumentOut)
+def _get_jobs(session: AsyncSession = Depends(get_session)) -> JobService:
+    return JobService(SQLAlchemyJobRepository(session))
+
+
+@router.post("/{document_id}/process", response_model=DocumentOut, status_code=202)
 async def process_document(
     document_id: int,
     session: AsyncSession = Depends(get_session),
     service: DocumentService = Depends(_get_service),
+    jobs: JobService = Depends(_get_jobs),
 ):
-    document = await service.process(document_id)
+    document = await service.mark_queued(document_id)
+    await jobs.enqueue_indexing(document_id)
     await session.commit()
     return document
 

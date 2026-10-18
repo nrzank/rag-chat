@@ -1,6 +1,6 @@
 import pytest
 
-from app.base.exceptions import DocumentNotFoundError
+from app.base.exceptions import DocumentNotFoundError, DocumentParsingError
 from app.documents.models import DocumentStatus
 from app.documents.service import DocumentService
 from core.config import settings
@@ -58,13 +58,31 @@ async def test_reprocessing_does_not_duplicate_chunks(service):
     assert [c.text for c in first] == [c.text for c in second]
 
 
-async def test_process_marks_document_failed_on_unsupported_type(service):
+async def test_process_raises_on_unsupported_type(service):
+    """The queue owns retry policy, so process() must not swallow failures."""
     document = await service.upload("report.bin", "application/octet-stream", b"\x00\x01")
 
-    processed = await service.process(document.id)
+    with pytest.raises(DocumentParsingError):
+        await service.process(document.id)
 
-    assert processed.status is DocumentStatus.failed
-    assert processed.error_message
+
+async def test_mark_failed_records_the_reason(service):
+    document = await service.upload("notes.txt", "text/plain", b"alpha")
+
+    failed = await service.mark_failed(document.id, "Не удалось обработать документ")
+
+    assert failed.status is DocumentStatus.failed
+    assert failed.error_message == "Не удалось обработать документ"
+
+
+async def test_mark_queued_clears_previous_error(service):
+    document = await service.upload("notes.txt", "text/plain", b"alpha")
+    await service.mark_failed(document.id, "старая ошибка")
+
+    queued = await service.mark_queued(document.id)
+
+    assert queued.status is DocumentStatus.queued
+    assert queued.error_message is None
 
 
 async def test_process_unknown_document_raises(service):

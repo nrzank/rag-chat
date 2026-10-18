@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 
     retrieval_top_k: int = 5
 
+    worker_poll_seconds: float = 5.0
+    worker_batch_size: int = 5
+    worker_lease_seconds: int = 300
+
     chunk_size: int = 512
     chunk_overlap: int = 64
 

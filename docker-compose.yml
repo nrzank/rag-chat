@@ -41,6 +41,23 @@ services:
       qdrant:
         condition: service_started
 
+  worker:
+    build: ./backend
+    command: ["python", "-m", "workers.runner"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/ragchat
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: documents
+      UPLOAD_DIR: /app/uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
 volumes:
   pgdata:
   qdrant_data:

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { describe } from "../api/errors";
 import type { Document, DocumentStatus } from "../api/types";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   pending: "не обработан",
+  queued: "в очереди",
   processing: "обработка…",
   ready: "готов",
   failed: "ошибка",
@@ -12,10 +13,14 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
 
 const STATUS_STYLE: Record<DocumentStatus, string> = {
   pending: "bg-slate-200 text-slate-700",
+  queued: "bg-sky-100 text-sky-800",
   processing: "bg-amber-100 text-amber-800",
   ready: "bg-emerald-100 text-emerald-800",
   failed: "bg-rose-100 text-rose-800",
 };
+
+const IN_FLIGHT: DocumentStatus[] = ["queued", "processing"];
+const POLL_INTERVAL_MS = 2000;
 
 interface Props {
   selected: number[];
@@ -24,21 +29,29 @@ interface Props {
 
 export function DocumentsPanel({ selected, onToggleSelected }: Props) {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setDocuments(await api.listDocuments());
     } catch (e) {
       setError(describe(e));
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
+
+  const hasInFlight = documents.some((d) => IN_FLIGHT.includes(d.status));
+
+  useEffect(() => {
+    if (!hasInFlight) return;
+
+    const timer = setInterval(() => void load(), POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [hasInFlight, load]);
 
   const upload = async (file: File) => {
     setError("");
@@ -52,15 +65,12 @@ export function DocumentsPanel({ selected, onToggleSelected }: Props) {
   };
 
   const process = async (id: number) => {
-    setBusy(id);
     setError("");
     try {
       const updated = await api.processDocument(id);
       setDocuments((current) => current.map((d) => (d.id === id ? updated : d)));
     } catch (e) {
       setError(describe(e));
-    } finally {
-      setBusy(null);
     }
   };
 
@@ -138,7 +148,7 @@ export function DocumentsPanel({ selected, onToggleSelected }: Props) {
               <span
                 className={`rounded px-1.5 py-0.5 text-[11px] ${STATUS_STYLE[doc.status]}`}
               >
-                {busy === doc.id ? "обработка…" : STATUS_LABEL[doc.status]}
+                {STATUS_LABEL[doc.status]}
               </span>
               {doc.page_count !== null && (
                 <span className="text-[11px] text-slate-400">
@@ -157,8 +167,7 @@ export function DocumentsPanel({ selected, onToggleSelected }: Props) {
               {(doc.status === "pending" || doc.status === "failed") && (
                 <button
                   onClick={() => void process(doc.id)}
-                  disabled={busy === doc.id}
-                  className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                  className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
                 >
                   Обработать
                 </button>
