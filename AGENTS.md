@@ -1,25 +1,29 @@
-# Работа над этим проектом
+# Working on this project
 
-RAG-чат: загрузка документов, векторный поиск, стриминг ответа LLM.
-Пет-проект, работаем на `main`, без веток и PR.
+RAG chat: document upload, vector search, streamed LLM answers.
+Pet project. Work on `main`, no branches, no PRs.
 
-## Что читать и когда
+## What to read and when
 
-| Файл | Когда читать |
+| File | When |
 |---|---|
-| [docs/STATUS.md](docs/STATUS.md) | Всегда первым: что сделано, что дальше, известные долги |
-| [docs/CONTEXT.md](docs/CONTEXT.md) | Перед изменением логики домена: словарь терминов и инварианты |
-| [README.md](README.md) | Нужен список эндпоинтов, формат SSE или команды запуска |
-| [docs/specs/](docs/specs/) | Берёшься за новую фичу — спецификация лежит здесь |
+| [docs/STATUS.md](docs/STATUS.md) | Always first: what is done, what is next, known debt |
+| [docs/CONTEXT.md](docs/CONTEXT.md) | Before changing domain logic: vocabulary and invariants |
+| [README.md](README.md) | You need the endpoint list, the SSE format or the run commands |
+| [docs/specs/](docs/specs/) | Starting a new feature — its spec is here |
 
-Ниже — правила, которые действуют всегда.
+The rules below always apply.
 
-## Запуск
+## Running things
 
-Все команды из `backend/`, через `uv run`. Инфраструктура поднимается
-`docker compose up -d db qdrant` из корня.
+All commands run from `backend/` through `uv run`. Infrastructure comes up with
+`docker compose up -d db qdrant` from the repo root. The worker is a separate
+process: `uv run python -m workers.runner`.
 
-Никогда не коммитить `.env` и реальные ключи.
+Never commit `.env` or real keys.
+
+Note: the UI copy and the LLM prompts are in Russian on purpose — that is the
+product language. Code, comments and docs are in English.
 
 ## Architecture — DDD / Clean Architecture
 
@@ -48,6 +52,19 @@ Four layers, strict dependency direction: **domain → application → infrastru
 
 - **documents** — upload, parse, chunk, embed, store
 - **chat** — conversation history, RAG retrieval, LLM streaming
+- **jobs** — background job queue
+
+## Queue
+
+- All queue access goes through `JobService` — never query `worker_jobs` directly.
+- Delivery is at-least-once: every task must be idempotent.
+- `pg_notify` is a wake-up hint, never delivery. The poll fallback must work
+  on its own.
+- Completion deletes the job. Never soft-complete or archive in place.
+- Retry policy belongs to the queue, not the service: a task must let
+  exceptions propagate instead of swallowing them.
+- Status writes that must survive a rollback (`processing`, `failed`) go in
+  their own transaction, separate from the work.
 
 ## Layering (routers)
 

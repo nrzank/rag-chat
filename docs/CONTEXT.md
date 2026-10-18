@@ -1,129 +1,164 @@
-# Контекст проекта
+# Project context
 
-Читать перед тем, как менять логику домена. Здесь предметная область,
-словарь терминов и инварианты, которые не видны из кода.
+Read this before changing domain logic. It holds the domain, the vocabulary and
+the invariants that are not visible from the code.
 
-## Что строим
+## What we are building
 
-Сервис, который отвечает на вопросы по загруженным пользователем документам.
-Ответ генерирует LLM, но **только на основе найденных фрагментов** — модель не
-должна отвечать из собственных знаний. Если в документах ответа нет, она обязана
-сказать об этом прямо.
+A service that answers questions about documents the user uploaded. An LLM
+generates the answer, but **only from the retrieved chunks** — it must not answer
+from its own knowledge. If the documents do not contain the answer, it has to
+say so plainly.
 
-## Зачем так
+## Why it looks like this
 
-Это пет-проект для портфолио. Отсюда два следствия:
+This is a portfolio project. Two consequences follow:
 
-1. **Архитектура важнее скорости поставки.** Слои, протоколы и типизированные
-   ошибки здесь оправданы, даже если для такого объёма кода избыточны — проект
-   должен демонстрировать подход, а не только работать.
-2. **Фичи добавляются только если показывают инженерное решение.** Аутентификация,
-   мультитенантность и биллинг намеренно не делаются: они не добавляют ничего
-   к демонстрации RAG-пайплайна.
+1. **Architecture matters more than delivery speed.** Layers, protocols and
+   typed errors are justified here even though they are heavy for this amount
+   of code — the project has to demonstrate an approach, not just work.
+2. **Features are added only when they show an engineering decision.**
+   Authentication, multi-tenancy and billing are deliberately absent: they add
+   nothing to a demonstration of a RAG pipeline.
 
-## Словарь
+## Vocabulary
 
-Использовать эти термины, не изобретать синонимы.
+Use these terms. Do not invent synonyms.
 
-| Термин | Значение |
+| Term | Meaning |
 |---|---|
-| **Document** | Загруженный файл. Корень агрегата: фрагменты без него не существуют |
-| **Chunk** | Фрагмент текста документа фиксированного размера с перекрытием |
-| **embedding_id** | Идентификатор точки в Qdrant, соответствующей фрагменту |
-| **Conversation** | Диалог. Корень агрегата для сообщений |
-| **Message** | Реплика в диалоге, роль `user` или `assistant` |
-| **SourceRef** | Ссылка на фрагмент, использованный в ответе. Value object |
-| **retrieval** | Поиск релевантных фрагментов по вектору вопроса |
-| **indexing** | Генерация эмбеддингов и запись векторов в Qdrant |
+| **Document** | An uploaded file. Aggregate root: chunks do not exist without it |
+| **Chunk** | A fixed-size slice of a document's text, with overlap |
+| **embedding_id** | Identifier of the Qdrant point that corresponds to a chunk |
+| **Conversation** | A dialogue. Aggregate root for messages |
+| **Message** | One turn in a conversation, role `user` or `assistant` |
+| **SourceRef** | A reference to a chunk used in an answer. Value object |
+| **WorkerJob** | A queued job. Deleted on success, never archived in place |
+| **lease** | How long a worker holds a job. Once it expires another worker may take it |
+| **dedupe_key** | The key that keeps re-enqueueing from creating duplicate jobs |
+| **retrieval** | Finding relevant chunks by the question's vector |
+| **indexing** | Generating embeddings and writing vectors to Qdrant |
 
-Не использовать: «чанк» вперемешку с «фрагмент» в одном слое, «эмбеддинг» как
-синоним «вектора точки в Qdrant», «чат» вместо «диалог» в именах сущностей.
+Do not mix "chunk" and "fragment" within one layer, do not use "embedding" as a
+synonym for "Qdrant point", do not use "chat" instead of "conversation" in
+entity names.
 
-## Основные сценарии
+## Main flows
 
-### Загрузка и индексация
+### Upload and indexing
 
 ```
-POST /documents/        → файл на диск, запись в БД, статус pending
-POST /documents/{id}/process
-    → статус processing
-    → удалить прежние фрагменты и вектора
-    → распарсить файл
-    → нарезать на фрагменты
-    → получить эмбеддинги пакетом
-    → записать вектора в Qdrant
-    → сохранить фрагменты с embedding_id
-    → статус ready (или failed с error_message)
+POST /documents/        → file to disk, row in the DB, status pending
+
+POST /documents/{id}/process  → status queued, job enqueued, responds 202
+                              → pg_notify wakes the worker
+
+worker:
+    → claim the job (FOR UPDATE SKIP LOCKED + lease)
+    → status processing     ← own transaction, survives a rollback of the work
+    → delete previous chunks and vectors
+    → parse the file
+    → split into chunks
+    → fetch embeddings in a batch
+    → write vectors to Qdrant
+    → save chunks with embedding_id
+    → status ready, job deleted from the queue
+
+on failure:
+    → attempts left  → job returns to the queue after a delay
+    → attempts spent → status failed, job deleted
 ```
 
-### Вопрос и ответ
+### Question and answer
 
 ```
 POST /conversations/{id}/ask
-    → эмбеддинг вопроса
-    → поиск top-k фрагментов в Qdrant
-    → сохранить сообщение пользователя
-    → отдать событие sources
-    → собрать промпт: системный + история + контекст + вопрос
-    → стримить токены событиями token
-    → сохранить ответ ассистента с источниками
-    → отдать событие done
+    → embed the question
+    → search top-k chunks in Qdrant
+    → save the user message
+    → emit the sources event
+    → build the prompt: system + history + context + question
+    → stream tokens as token events
+    → save the assistant answer with its sources
+    → emit the done event
 ```
 
-## Инварианты
+## Invariants
 
-Нарушение любого из них — баг, даже если тесты зелёные.
+Breaking any of these is a bug, even if the tests are green.
 
-**Данные**
+**Data**
 
-- У документа в статусе `ready` есть хотя бы один фрагмент, и у каждого
-  заполнен `embedding_id`.
-- Документ в статусе `failed` обязан иметь непустой `error_message`.
-- Удаление документа удаляет файл с диска, фрагменты из БД и вектора из Qdrant.
-  Ни один из трёх шагов не пропускается.
-- Удаление диалога удаляет все его сообщения (каскад).
+- A document in status `ready` has at least one chunk, and every chunk has an
+  `embedding_id`.
+- A document in status `failed` must have a non-empty `error_message`.
+- Deleting a document removes the file from disk, the chunks from the DB and the
+  vectors from Qdrant. None of the three steps is skipped.
+- Deleting a conversation deletes all of its messages (cascade).
 
-**Индексация**
+**Indexing**
 
-- Идентификатор точки в Qdrant детерминированный: `uuid5` от
-  `document_id:chunk_index`. Повторная обработка перезаписывает те же точки.
-- Повторный `process` того же документа не создаёт дублирующих фрагментов.
-- Эмбеддинги запрашиваются пакетами, никогда по одному в цикле.
-- При сопоставлении фрагментов с векторами используется `zip(..., strict=True)`.
-  Молчаливое обрезание здесь означает потерю данных без единой ошибки.
+- Qdrant point ids are deterministic: `uuid5` over `document_id:chunk_index`.
+  Re-processing overwrites the same points.
+- Running `process` twice on the same document does not create duplicate chunks.
+- Embeddings are requested in batches, never one at a time in a loop.
+- Pairing chunks with vectors always uses `zip(..., strict=True)`. Silent
+  truncation here means losing data without a single error.
 
-**Чанкинг**
+**Chunking**
 
-- `0 <= chunk_overlap < chunk_size`. При нарушении — вечный цикл, поэтому
-  проверка стоит и в функции, и в валидаторе настроек.
-- Фрагмент никогда не длиннее `chunk_size`.
-- Пустые фрагменты и фрагменты из одних пробелов не сохраняются.
-- Индексы фрагментов внутри документа идут подряд с нуля.
+- `0 <= chunk_overlap < chunk_size`. Breaking this causes an infinite loop,
+  which is why the check exists both in the function and in the settings
+  validator.
+- A chunk is never longer than `chunk_size`.
+- Empty and whitespace-only chunks are not saved.
+- Chunk indexes within a document run consecutively from zero.
 
-**Чат**
+**Queue**
 
-- Ответ строится только из переданного контекста. Системный промпт запрещает
-  домысливать.
-- Нумерация фрагментов в контексте совпадает с порядком в событии `sources` —
-  интерфейс связывает ссылку `[2]` со вторым источником.
-- История в промпте обрезается последними `HISTORY_LIMIT` сообщениями.
-- Сообщение ассистента сохраняется после завершения потока, вместе с источниками.
-- Коммит транзакции происходит после окончания стрима, не до него.
+- Delivery is **at-least-once**. A job can run twice: the lease expired, or the
+  process died after the work but before the job was deleted. Indexing is
+  therefore idempotent — it drops previous chunks and vectors first.
+- `pg_notify` is only a hint for immediate pickup. Every path must also work
+  through polling: a lost notification must not stall the queue.
+- `LISTEN` needs its own asyncpg connection, not one from the SQLAlchemy pool.
+- Completing a job means deleting the row. Completed jobs are not archived in
+  place, or the table bloats.
+- An exhausted job must leave a trace: the document moves to `failed`. Never
+  drop a job without recording why.
+- The `processing` and `failed` statuses are written **in their own
+  transactions**. The work transaction rolls back on failure and would take
+  them with it.
+- Retry policy belongs to the queue, not the service. `DocumentService.process()`
+  must let exceptions propagate instead of swallowing them: otherwise the queue
+  considers the work done and retries never fire.
+- Every enqueue sets a deterministic `dedupe_key` — asking to process the same
+  document again does not create a second job.
 
-**Согласованность хранилищ**
+**Chat**
 
-Postgres и Qdrant пишутся вне общей транзакции. Если запись в Qdrant прошла,
-а коммит в БД упал — остаются осиротевшие вектора. Это допустимо: детерминированные
-идентификаторы точек делают повторную обработку сходящейся. Строить распределённую
-транзакцию здесь не нужно.
+- The answer is built only from the provided context. The system prompt forbids
+  making things up.
+- Chunk numbering in the context matches the order in the `sources` event — the
+  UI links a `[2]` citation to the second source.
+- History in the prompt is trimmed to the last `HISTORY_LIMIT` messages.
+- The assistant message is saved after the stream finishes, together with its
+  sources.
+- The transaction is committed after the stream ends, not before it.
 
-## Чего не делаем
+**Storage consistency**
 
-Эти решения приняты. Не предлагать их заново без явного запроса.
+Postgres and Qdrant are written outside a shared transaction. If the Qdrant
+write succeeds and the DB commit fails, orphan vectors remain. That is
+acceptable: deterministic point ids make re-processing converge. Do not build a
+distributed transaction here.
 
-- Аутентификация, пользователи, мультитенантность
-- Переранжирование результатов поиска (reranking)
-- Гибридный поиск (вектора + полнотекстовый)
-- Фоновые воркеры: `process` работает синхронно в запросе
-- Поддержка форматов сверх PDF, DOCX, TXT
-- Дообучение моделей
+## Out of scope
+
+These decisions are settled. Do not propose them again without an explicit ask.
+
+- Authentication, users, multi-tenancy
+- Reranking of search results
+- Hybrid search (vectors plus full text)
+- Formats beyond PDF, DOCX and TXT
+- Fine-tuning models

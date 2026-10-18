@@ -1,89 +1,94 @@
-# Состояние проекта
+# Project status
 
-Обновлять после каждого завершённого шага. Это первое, что читает агент,
-которому передают работу.
+Update this after every completed step. It is the first thing an agent picking
+up the work should read.
 
-Обновлено: 2026-10-18
+Updated: 2026-10-18
 
-## Коротко
+## In short
 
-Бэкенд и фронтенд работают. Полный цикл проверить не удалось: нет рабочего
-ключа OpenAI, поэтому индексация и генерация ответа падают с 401.
-Всё остальное — CRUD, статусы, стриминг, обработка ошибок — проверено в браузере.
+Backend and frontend both work, including background processing through a job
+queue. The full cycle has not been verified: there is no working OpenAI key, so
+indexing and answer generation fail with a 401. Everything else — CRUD,
+statuses, the queue with its retries, streaming, error handling — was checked
+in the browser.
 
-## Готово
+## Done
 
-| Область | Состояние |
+| Area | State |
 |---|---|
-| Структура проекта, uv, Python 3.12 | Готово |
-| Конфигурация (pydantic-settings) | Готово, с валидацией параметров чанкинга |
-| PostgreSQL + async SQLAlchemy 2.0 | Готово |
-| Alembic | Готово, 2 миграции накачены |
-| Домен документов | Готово: модели, репозитории, сервис |
-| Парсинг PDF / DOCX / TXT | Готово |
-| Чанкинг с перекрытием | Готово, баг с вечным циклом исправлен |
-| Клиент OpenAI | Готово: эмбеддинги пакетами, chat, стриминг |
-| Клиент Qdrant | Готово: коллекция, upsert, поиск, удаление |
-| Индексация документов | Готово, идемпотентная |
-| Домен чата | Готово: диалоги, сообщения, источники |
-| RAG-поиск и сборка промпта | Готово |
-| Стриминг ответа через SSE | Готово: события sources / token / done / error |
-| Типизированные ошибки | Готово, единый формат `{code, message, params}` |
-| Линтер и форматтер (ruff) | Готово, проходит чисто |
-| Тесты бэкенда | 27 штук: property-based на чанкер, функциональные на сервисы документов и чата |
-| Dockerfile + docker-compose | Готово: multi-stage, non-root, healthcheck |
-| CORS | Готово, origin из настроек |
-| Фронтенд | Готово: документы, диалоги, стриминг, источники |
-| Тесты фронтенда | 5 штук на разбор SSE (vitest) |
-| CI | Готово: GitHub Actions, два job — бэкенд и фронтенд |
+| Project layout, uv, Python 3.12 | Done |
+| Configuration (pydantic-settings) | Done, validates chunking parameters |
+| PostgreSQL + async SQLAlchemy 2.0 | Done |
+| Alembic | Done, 3 migrations applied |
+| Documents domain | Done: models, repositories, service |
+| PDF / DOCX / TXT parsing | Done |
+| Chunking with overlap | Done, infinite-loop bug fixed |
+| OpenAI client | Done: batched embeddings, chat, streaming |
+| Qdrant client | Done: collection, upsert, search, delete |
+| Document indexing | Done, idempotent |
+| Chat domain | Done: conversations, messages, sources |
+| RAG retrieval and prompt building | Done |
+| Answer streaming over SSE | Done: sources / token / done / error events |
+| Typed errors | Done, one `{code, message, params}` shape |
+| Job queue | Done: LISTEN/NOTIFY, leases, retries with backoff, dedupe |
+| Background indexing | Done: `process` returns 202, the worker does the work |
+| Linter and formatter (ruff) | Done, passes clean |
+| CI | Done: GitHub Actions, two jobs — backend and frontend |
+| CORS | Done, origin from settings |
+| Frontend | Done: documents, conversations, streaming, sources |
+| Backend tests | 37: property-based over the chunker, functional over the document, chat and queue services |
+| Frontend tests | 5 over SSE parsing (vitest) |
+| Dockerfile + docker-compose | Done: multi-stage, non-root, healthcheck, worker service |
 
-## Схема базы
+## Database schema
 
-| Таблица | Назначение |
+| Table | Purpose |
 |---|---|
-| `documents` | Загруженные файлы, статус обработки |
-| `chunks` | Фрагменты текста, ссылка на точку в Qdrant |
-| `conversations` | Диалоги |
-| `messages` | Реплики, источники в JSONB |
+| `documents` | Uploaded files and their processing status |
+| `chunks` | Text chunks, each pointing at a Qdrant point |
+| `conversations` | Dialogues |
+| `messages` | Turns, with sources in JSONB |
+| `worker_jobs` | Background job queue |
 
-Во всех таблицах `id`, `created_at`, `updated_at` наследуются от `Base`.
+Every table inherits `id`, `created_at` and `updated_at` from `Base`.
 
-## Что дальше
+## Next
 
-1. Прогнать полный цикл с рабочим ключом OpenAI: загрузка → индексация →
-   вопрос → стриминг ответа с источниками
-2. Асинхронная обработка документов: сейчас `process` блокирует запрос,
-   на большом PDF это минуты
-3. Скриншоты интерфейса и демонстрация стриминга в README
+1. Run the full cycle with a working OpenAI key: upload → indexing → question →
+   streamed answer with sources
+2. Screenshots of the UI and a demo of the streaming in the README
 
-## Известные долги
+## Known debt
 
-Осознанные компромиссы, не баги. Трогать только по явному запросу.
+Deliberate trade-offs, not bugs. Touch only when explicitly asked.
 
-- `process` выполняется синхронно в HTTP-запросе. Для демонстрации приемлемо,
-  для продакшена нужна очередь.
-- Миграции не накатываются при старте контейнера. Сделано намеренно: на
-  нескольких репликах будет гонка. Запускать отдельным шагом деплоя.
-- `app/chat/ports.py` импортирует `SearchHit` из `core.qdrant`. Чистый DDD
-  потребовал бы свой доменный тип и адаптер — это был бы класс-близнец
-  без отличий.
-- Нет ограничения на размер загружаемого файла.
-- Расход токенов нигде не учитывается.
-- `workers/` создана, но пуста — задел под пункт 3.
-- Загрузка файла из интерфейса не проверена в браузере: скрытый `input[type=file]`
-  недоступен для автоматизации. Проверялась через API.
-- Контейнер `api` остановлен: порт 8001 конфликтовал с локальным uvicorn.
-  Для разработки нужен локальный сервер с hot-reload. Поднять обратно —
+- One worker, with no per-kind concurrency budget. Fine for a single job kind;
+  separate pools would be needed as it grows.
+- No dead-letter storage: an exhausted job is deleted, and the only trace left
+  is the document status and the logs.
+- Migrations do not run on container start. Deliberate: several replicas would
+  race. Run them as a separate deployment step.
+- `app/chat/ports.py` imports `SearchHit` from `core.qdrant`. Strict DDD would
+  want a domain type and an adapter — that would be a twin class with no
+  differences.
+- No upload size limit.
+- Token usage is not tracked anywhere.
+- Uploading a file through the UI was not verified in a browser: a hidden
+  `input[type=file]` cannot be driven by automation. It was tested through the API.
+- The `api` container is stopped: port 8001 clashed with the local uvicorn.
+  Development needs the local server with hot reload. Bring it back with
   `docker compose up -d --build api`.
 
-## Как проверить, что всё живо
+## How to check everything still works
 
 ```bash
 docker compose up -d db qdrant
 cd backend && uv run alembic upgrade head
-cd backend && uv run pytest -q          # 27 passed
+cd backend && uv run pytest -q          # 37 passed
 cd backend && uv run ruff check .       # All checks passed
 cd backend && uv run uvicorn app.main:app --reload --port 8001
+cd backend && uv run python -m workers.runner   # in another terminal
 
 cd frontend && npm install
 cd frontend && npx vitest run           # 5 passed

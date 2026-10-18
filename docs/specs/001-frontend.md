@@ -1,59 +1,58 @@
-# 001 — Фронтенд
+# 001 — Frontend
 
-Статус: выполнена 2026-10-18
-Создана: 2026-10-17
+Status: delivered 2026-10-18
 
-## Зачем
+## Why
 
-Бэкенд работает, но показать его можно только через Swagger. Нужен интерфейс,
-где видно главное: ответ печатается потоком, а источники появляются **до**
-первого токена.
+The backend works, but the only way to show it was Swagger. We need a UI where
+the point is visible: the answer types out as it streams, and the sources
+appear **before** the first token.
 
-## Что строим
+## What we build
 
-Одностраничное приложение: слева список документов и диалогов, справа чат.
+A single-page app: documents and conversations on the left, chat on the right.
 
-### Экран 1. Документы
+### Screen 1. Documents
 
-- Список: имя файла, статус, число страниц, дата
-- Загрузка через выбор файла или перетаскивание
-- Кнопка «Обработать» для документа в статусе `pending` или `failed`
-- Статус `processing` показывается индикатором
-- Для `failed` показывается `error_message`
-- Удаление с подтверждением
+- List: file name, status, page count, date
+- Upload via file picker or drag and drop
+- A "Process" button for documents in `pending` or `failed`
+- `processing` shows an indicator
+- `failed` shows its `error_message`
+- Delete with confirmation
 
-### Экран 2. Чат
+### Screen 2. Chat
 
-- Список диалогов, создание нового, удаление
-- История сообщений выбранного диалога
-- Поле ввода вопроса
-- Опционально: выбор документов, по которым искать (`document_ids`)
-- Ответ ассистента печатается по мере прихода токенов
-- Над ответом — блок источников, появляется до начала текста
-- Ссылки `[1]`, `[2]` в тексте ответа подсвечивают соответствующий источник
+- Conversation list, create new, delete
+- Message history of the selected conversation
+- Question input
+- Optionally: pick which documents to search (`document_ids`)
+- The assistant answer types out as tokens arrive
+- A sources block above the answer, shown before the text starts
+- `[1]`, `[2]` citations in the answer highlight the matching source
 
-## Границы
+## Boundaries
 
-**Делаем:** документы, диалоги, стриминг ответа, источники, обработка ошибок.
+**In:** documents, conversations, answer streaming, sources, error handling.
 
-**Не делаем:** авторизацию, темы оформления, мобильную вёрстку,
-загрузку нескольких файлов разом, редактирование сообщений, экспорт.
+**Out:** authentication, theming, mobile layout, multi-file upload, message
+editing, export.
 
-## Технические требования
+## Technical requirements
 
-- React 18 + TypeScript, строгий режим
+- React 18+ and TypeScript, strict mode
 - Vite
-- Состояние: встроенные хуки React. Redux и MobX не подключать
-- Запросы: `fetch`. HTTP-клиенты не добавлять
-- Стили: Tailwind
-- Типы ответов API описать вручную в `src/api/types.ts`,
-  кодогенерацию из OpenAPI не настраивать
-- Базовый URL API — из `VITE_API_URL`, по умолчанию `http://localhost:8001`
+- State: built-in React hooks. Do not add Redux or MobX
+- Requests: `fetch`. Do not add an HTTP client
+- Styling: Tailwind
+- Write API response types by hand in `src/api/types.ts`; do not set up
+  OpenAPI codegen
+- API base URL from `VITE_API_URL`, defaulting to `http://localhost:8001`
 
-## Работа с SSE
+## Working with SSE
 
-`EventSource` не подходит: он умеет только GET, а `ask` — это POST с телом.
-Использовать `fetch` с чтением потока:
+`EventSource` does not fit: it only does GET, and `ask` is a POST with a body.
+Use `fetch` and read the stream:
 
 ```ts
 const response = await fetch(`${API}/api/v1/conversations/${id}/ask`, {
@@ -65,48 +64,46 @@ const response = await fetch(`${API}/api/v1/conversations/${id}/ask`, {
 const reader = response.body!.getReader();
 ```
 
-Разбирать кадры SSE вручную: события разделяются пустой строкой, внутри кадра
-строки `event:` и `data:`.
+Parse SSE frames by hand: frames are separated by a blank line, and inside a
+frame the lines are `event:` and `data:`.
 
-Ожидаемые события:
+Expected events:
 
-| Событие | Тело | Что делать |
+| Event | Body | What to do |
 |---|---|---|
-| `sources` | `{sources: [{document_id, chunk_index, score}]}` | Показать блок источников |
-| `token` | `{text: string}` | Дописать к тексту ответа |
-| `done` | `{message_id: number}` | Завершить, зафиксировать сообщение |
-| `error` | `{code, message, params}` | Показать ошибку, оставить вопрос в поле ввода |
+| `sources` | `{sources: [{document_id, chunk_index, score}]}` | Show the sources block |
+| `token` | `{text: string}` | Append to the answer text |
+| `done` | `{message_id: number}` | Finish, commit the message |
+| `error` | `{code, message, params}` | Show the error, keep the question in the input |
 
-Поток может оборваться — обрабатывать закрытие соединения без события `done`.
+The stream can be cut off — handle the connection closing without a `done` event.
 
-## Контракт API
+## API contract
 
-Полный список эндпоинтов — в [README](../../README.md#api).
-Формат ошибок единый: `{code, message, params}`. Показывать пользователю
-текст по `code`, а не сырое `message` из ответа.
+The full endpoint list is in the [README](../../README.md#api).
+Errors share one shape: `{code, message, params}`. Show the user text derived
+from `code`, not the raw `message` from the response.
 
-Статусы документа: `pending`, `processing`, `ready`, `failed`.
+Document statuses: `pending`, `queued`, `processing`, `ready`, `failed`.
 
-## Критерии приёмки
+## Acceptance criteria
 
-1. Загруженный PDF появляется в списке, после «Обработать» статус меняется
-   на `ready`
-2. Файл неподдерживаемого типа даёт понятное сообщение, а не падение
-3. При вопросе блок источников появляется раньше первого символа ответа
-4. Текст ответа печатается постепенно, а не возникает целиком
-5. После перезагрузки страницы история диалога на месте
-6. Удаление документа убирает его из списка и из фильтра поиска
-7. Остановленный бэкенд даёт сообщение об ошибке, а не белый экран
-8. `npm run build` проходит без ошибок TypeScript
+1. An uploaded PDF appears in the list; after "Process" the status becomes `ready`
+2. An unsupported file type produces a clear message, not a crash
+3. The sources block appears before the first character of the answer
+4. The answer text types out gradually instead of appearing all at once
+5. Conversation history survives a page reload
+6. Deleting a document removes it from the list and from the search filter
+7. A stopped backend produces an error message, not a blank screen
+8. `npm run build` passes with no TypeScript errors
 
-## Структура
+## Layout
 
 ```
 frontend/
 ├── src/
 │   ├── api/          # client.ts, types.ts, sse.ts
 │   ├── components/
-│   ├── pages/
 │   ├── App.tsx
 │   └── main.tsx
 ├── index.html
@@ -115,13 +112,15 @@ frontend/
 └── vite.config.ts
 ```
 
-## Что выяснилось при реализации
+## What surfaced during implementation
 
-- **sse-starlette завершает кадры через `\r\n\r\n`, а не `\n\n`.** Парсер,
-  искавший `\n\n`, не разбирал ни одного кадра — интерфейс молчал, ошибок
-  в консоли не было. Закрыто тестом в `src/api/__tests__/sse.test.ts`.
-- `error_message` отсутствовал в `DocumentOut`, хотя спека требовала его
-  показывать. Добавлен в схему.
-- Сырой текст ошибки OpenAI утекал в интерфейс. Теперь наружу идёт
-  обезличенное сообщение, подробности остаются в логах.
-- CORS добавлен: `CORSMiddleware` в `app/main.py`, origin в `settings.cors_origins`.
+- **sse-starlette terminates frames with `\r\n\r\n`, not `\n\n`.** A parser
+  looking for `\n\n` never parsed a single frame — the UI stayed silent with no
+  console errors. Covered by a test in `src/api/__tests__/sse.test.ts`.
+- `error_message` was missing from `DocumentOut` even though the spec required
+  showing it. Added to the schema.
+- The raw OpenAI error text leaked into the UI. Now a sanitized message goes out
+  and the detail stays in the logs.
+- CORS added: `CORSMiddleware` in `app/main.py`, origin in `settings.cors_origins`.
+- Processing became asynchronous after this spec was written: `process` now
+  returns `202` and the UI polls the status while it is `queued` or `processing`.

@@ -1,4 +1,4 @@
 # RAG Chat
 
-Контекст проекта и правила — в [AGENTS.md](AGENTS.md).
-Он же указывает, какие файлы в `docs/` читать и когда.
+Project context and conventions live in [AGENTS.md](AGENTS.md).
+It also says which files under `docs/` to read and when.
