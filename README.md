@@ -1,5 +1,7 @@
 # RAG Chat
 
+[![CI](https://github.com/nrzank/rag-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/nrzank/rag-chat/actions/workflows/ci.yml)
+
 Чат-бот с поиском по собственным документам. Загружаешь PDF, DOCX или TXT —
 система разбивает их на фрагменты, строит эмбеддинги, кладёт в векторную базу.
 Дальше задаёшь вопрос на естественном языке и получаешь ответ потоком,
@@ -160,6 +162,10 @@ uv run pytest -q         # тесты
 ```bash
 cd backend && uv run alembic revision --autogenerate -m "описание"
 ```
+
+На каждый пуш и pull request в `main` запускается CI
+([.github/workflows/ci.yml](.github/workflows/ci.yml)): для бэкенда — `ruff
+format --check`, `ruff check` и `pytest`, для фронтенда — `vitest` и сборка.
 
 ## Тесты
 
